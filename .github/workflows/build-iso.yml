@@ -24,6 +24,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Schijfruimte vrijmaken
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af 2>/dev/null || true
+          df -h
+
       - name: Install live-build
         run: |
           sudo apt-get update -qq
@@ -51,13 +57,22 @@ jobs:
           # lb config uitvoeren (roept auto/config aan)
           lb config
 
+      - name: Schijfruimte voor build
+        run: df -h
+
       - name: Bouw ISO
         working-directory: build
         run: |
           set -o pipefail
           sudo lb build 2>&1 | tee ../build.log
-          echo "--- Laatste 50 regels build log ---"
-          tail -50 ../build.log
+
+      - name: Toon einde build log
+        if: always()
+        run: tail -100 build.log || true
+
+      - name: Schijfruimte na build
+        if: always()
+        run: df -h
 
       - name: Hernoem ISO naar versie
         run: |

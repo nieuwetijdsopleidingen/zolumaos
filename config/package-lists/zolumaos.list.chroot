@@ -1,5 +1,5 @@
 # ZolumaOS — Standaard pakketlijst (chroot)
-# Deze pakketten worden in de live omgeving en geïnstalleerde versie opgenomen.
+# Slank gehouden voor de ISO build — zware apps via Store installeerbaar.
 
 # ── Desktop omgeving ─────────────────────────────────────
 xfce4
@@ -16,7 +16,6 @@ gvfs-backends
 # ── Display manager ──────────────────────────────────────
 lightdm
 lightdm-gtk-greeter
-lightdm-gtk-greeter-settings
 
 # ── Dock ─────────────────────────────────────────────────
 plank
@@ -31,48 +30,18 @@ papirus-icon-theme
 # ── Browser ──────────────────────────────────────────────
 firefox
 
-# ── Kantoor ──────────────────────────────────────────────
-libreoffice
-libreoffice-l10n-nl
-libreoffice-help-nl
-
-# ── Media ────────────────────────────────────────────────
-vlc
-gimp
-rhythmbox
-
-# ── Netwerk & communicatie ────────────────────────────────
+# ── Netwerk ──────────────────────────────────────────────
 network-manager
 network-manager-gnome
-blueman
 
 # ── Systeem & hulpprogramma's ─────────────────────────────
-gparted
-gnome-disk-utility
-baobab
 htop
 curl
 wget
 unzip
-p7zip-full
 file-roller
 evince
 
-# ── Hardware ondersteuning ────────────────────────────────
-firmware-linux-free
-intel-microcode
-amd64-microcode
-linux-firmware
-
 # ── Fonts ────────────────────────────────────────────────
-fonts-inter
 fonts-noto
 fonts-noto-color-emoji
-
-# ── Wine afhankelijkheden (x86_64 only — geïnstalleerd via script) ──
-# wine-stable wordt via install-wine.sh geïnstalleerd, niet hier
-# omdat het extra repositories (winehq) vereist
-
-# ── Node.js (voor Store backend) ─────────────────────────
-nodejs
-npm
