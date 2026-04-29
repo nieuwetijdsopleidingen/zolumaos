@@ -35,23 +35,21 @@ jobs:
       - name: Initialiseer live-build configuratie
         working-directory: build
         run: |
-          cp -r ../config .
-          chmod +x config/auto/config
-          lb config
-
-      - name: Kopieer scripts en hooks
-        working-directory: build
-        run: |
-          cp -r ../config/hooks/live config/hooks/live/ 2>/dev/null || true
+          # auto/config moet in de root van de build directory staan (niet in config/)
+          mkdir -p auto
+          cp ../auto/config auto/config
+          chmod +x auto/config
+          # Overige config mappen overnemen
+          cp -r ../config/package-lists config/
+          cp -r ../config/hooks config/
           cp -r ../config/includes.chroot config/ 2>/dev/null || true
-
-      - name: Kopieer installatiescripts naar chroot
-        working-directory: build
-        run: |
+          # Installatiescripts in chroot plaatsen
           mkdir -p config/includes.chroot/opt/zolumaos
           cp ../scripts/install-wine.sh config/includes.chroot/opt/zolumaos/
           cp ../scripts/setup-desktop.sh config/includes.chroot/opt/zolumaos/
           chmod +x config/includes.chroot/opt/zolumaos/*.sh
+          # lb config uitvoeren (roept auto/config aan)
+          lb config
 
       - name: Bouw ISO
         working-directory: build
