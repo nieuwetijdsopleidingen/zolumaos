@@ -34,15 +34,16 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y live-build
-          # Dummy pakketten aanmaken voor ontbrekende syslinux-thema's
-          sudo apt-get install -y equivs
-          mkdir -p /tmp/dummies && cd /tmp/dummies
-          for PKG in syslinux-themes-ubuntu-oneiric gfxboot-theme-ubuntu; do
-            printf 'Package: %s\nVersion: 0.0.1\nArchitecture: all\nMaintainer: ZolumaOS Build <build@zoluma.org>\nDescription: Dummy package for ZolumaOS build\n' "$PKG" > "${PKG}.ctl"
-            equivs-build "${PKG}.ctl"
-            sudo dpkg -i "${PKG}_0.0.1_all.deb"
-          done
-          cd -
+          # Zoek en vervang binary_syslinux door een stub (pakket bestaat niet in noble)
+          echo "=== Zoeken naar syslinux script ==="
+          SYSLINUX_SCRIPT=$(grep -rl "syslinux-themes-ubuntu\|gfxboot-theme-ubuntu" /usr/lib/live/ /usr/share/live/ 2>/dev/null | head -1)
+          if [ -n "$SYSLINUX_SCRIPT" ]; then
+            echo "Gevonden: $SYSLINUX_SCRIPT — vervangen door stub"
+            printf '#!/bin/sh\necho "P: Syslinux overgeslagen (pakketten niet beschikbaar in noble)"\nexit 0\n' | sudo tee "$SYSLINUX_SCRIPT"
+          else
+            echo "Script niet gevonden via grep — zoeken op naam:"
+            find /usr/lib/live/ /usr/share/live/ -name "*syslinux*" 2>/dev/null
+          fi
 
       - name: Maak build directory aan
         run: mkdir -p build
