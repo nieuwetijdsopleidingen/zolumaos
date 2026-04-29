@@ -34,11 +34,15 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y live-build
-          # Patch: verwijder verouderde Ubuntu syslinux-thema pakketten uit het build script
-          SCRIPT=/usr/lib/live/build/binary_syslinux
-          sudo sed -i '/syslinux-themes-ubuntu/d' "$SCRIPT"
-          sudo sed -i '/gfxboot-theme-ubuntu/d' "$SCRIPT"
-          echo "Patch toegepast op $SCRIPT"
+          # Zoek en patch het syslinux build script
+          echo "=== Live-build syslinux scripts ==="
+          find /usr/lib/live/ -name "*syslinux*" 2>/dev/null || echo "(geen syslinux script gevonden)"
+          grep -rl "syslinux-themes-ubuntu\|gfxboot-theme-ubuntu" /usr/lib/live/ 2>/dev/null | tee /tmp/syslinux_scripts.txt || true
+          while IFS= read -r SCRIPT; do
+            echo "Patching: $SCRIPT"
+            sudo sed -i '/syslinux-themes-ubuntu/d' "$SCRIPT"
+            sudo sed -i '/gfxboot-theme-ubuntu/d' "$SCRIPT"
+          done < /tmp/syslinux_scripts.txt
 
       - name: Maak build directory aan
         run: mkdir -p build
