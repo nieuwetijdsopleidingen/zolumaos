@@ -45,3 +45,17 @@ evince
 # ── Fonts ────────────────────────────────────────────────
 fonts-noto
 fonts-noto-color-emoji
+
+# ── Installer ────────────────────────────────────────────
+calamares
+python3-yaml
+# Bootloader (BIOS + UEFI, bins zonder conflicts)
+grub-pc-bin
+grub-efi-amd64-bin
+grub-efi-amd64-signed
+efibootmgr
+os-prober
+# Partitionering
+parted
+gdisk
+squashfs-tools

@@ -1,0 +1,142 @@
+#!/bin/sh
+# Calamares installer configuratie voor ZolumaOS
+
+mkdir -p /etc/calamares/modules
+
+# Hoofdconfiguratie
+cat > /etc/calamares/settings.conf << 'EOF'
+modules-search: [ local, /usr/lib/calamares/modules ]
+
+sequence:
+  - show:
+    - welcome
+    - locale
+    - keyboard
+    - partition
+    - users
+    - summary
+  - exec:
+    - partition
+    - mount
+    - unpackfs
+    - machineid
+    - fstab
+    - locale
+    - keyboard
+    - localecfg
+    - users
+    - networkcfg
+    - hwclock
+    - grubcfg
+    - bootloader
+    - packages
+    - removeuser
+    - umount
+  - show:
+    - finished
+
+branding: zolumaos
+prompt-install: true
+dont-chroot: false
+oem-setup: false
+disable-cancel: false
+disable-cancel-during-exec: false
+EOF
+
+# Branding
+mkdir -p /etc/calamares/branding/zolumaos
+cat > /etc/calamares/branding/zolumaos/branding.desc << 'EOF'
+componentName: zolumaos
+strings:
+  productName: ZolumaOS
+  shortProductName: ZolumaOS
+  version: "1.0"
+  shortVersion: "1.0"
+  versionedName: ZolumaOS 1.0
+  shortVersionedName: ZolumaOS 1.0
+  bootloaderEntryName: ZolumaOS
+  productUrl: https://zoluma.org
+  supportUrl: https://zoluma.org
+  knownIssuesUrl: https://zoluma.org
+  releaseNotesUrl: https://zoluma.org
+
+images:
+  productLogo: "logo.png"
+  productIcon: "logo.png"
+  productWelcome: "languages.png"
+
+style:
+  sidebarBackground:    "#2c3e50"
+  sidebarText:          "#ffffff"
+  sidebarTextSelect:    "#3498db"
+  sidebarBackgroundCurrent: "#3498db"
+EOF
+
+# Kopieer placeholder logo (gebruik calamares eigen logo als fallback)
+cp /usr/share/calamares/branding/default/logo.png \
+   /etc/calamares/branding/zolumaos/logo.png 2>/dev/null || true
+cp /usr/share/calamares/branding/default/languages.png \
+   /etc/calamares/branding/zolumaos/languages.png 2>/dev/null || true
+
+# unpackfs module — kopieert het live systeem naar de harde schijf
+cat > /etc/calamares/modules/unpackfs.conf << 'EOF'
+unpack:
+  - source: /run/live/medium/live/filesystem.squashfs
+    sourcefs: squashfs
+    destination: ""
+EOF
+
+# users module
+cat > /etc/calamares/modules/users.conf << 'EOF'
+defaultGroups:
+  - name: sudo
+    must_exist: true
+    system: true
+  - name: audio
+    must_exist: false
+    system: true
+  - name: video
+    must_exist: false
+    system: true
+  - name: netdev
+    must_exist: false
+    system: true
+
+autologinGroup: autologin
+doAutologin: false
+sudoersGroup: sudo
+setRootPassword: false
+doReusePassword: true
+passwordRequirements:
+  nonempty: true
+userShell: /bin/bash
+EOF
+
+# locale module
+cat > /etc/calamares/modules/locale.conf << 'EOF'
+region: "Europe"
+zone: "Amsterdam"
+localeGenPath: "/etc/locale.gen"
+geoipStyle: none
+EOF
+
+# Desktop shortcut om Calamares te starten
+mkdir -p /usr/share/applications
+cat > /usr/share/applications/calamares.desktop << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=ZolumaOS Installeren
+Name[nl]=ZolumaOS Installeren
+Comment=Installeer ZolumaOS op deze computer
+Exec=pkexec calamares
+Icon=calamares
+Terminal=false
+Categories=System;
+EOF
+
+# Zet het ook op de live-user desktop
+mkdir -p /etc/skel/Desktop
+cp /usr/share/applications/calamares.desktop /etc/skel/Desktop/
+chmod +x /etc/skel/Desktop/calamares.desktop
+
+echo "Calamares geconfigureerd voor ZolumaOS"
