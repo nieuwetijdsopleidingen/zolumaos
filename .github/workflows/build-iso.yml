@@ -90,6 +90,7 @@ jobs:
         working-directory: build
         run: |
           set -o pipefail
+          sudo lb clean --all 2>/dev/null || true
           sudo lb build 2>&1 | tee ../build.log
 
       - name: Toon einde build log
