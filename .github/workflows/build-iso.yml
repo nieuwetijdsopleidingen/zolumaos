@@ -12,6 +12,9 @@ on:
         required: false
         default: '1.0'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -52,7 +55,11 @@ jobs:
 
       - name: Bouw ISO
         working-directory: build
-        run: sudo lb build 2>&1 | tee ../build.log
+        run: |
+          set -o pipefail
+          sudo lb build 2>&1 | tee ../build.log
+          echo "--- Laatste 50 regels build log ---"
+          tail -50 ../build.log
 
       - name: Hernoem ISO naar versie
         run: |
@@ -71,6 +78,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload build log als artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
