@@ -1,0 +1,15 @@
+#!/bin/sh
+# Hook: Wine installeren in de live chroot (alleen x86_64).
+
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+ARCH=$(uname -m)
+if [ "$ARCH" != "x86_64" ]; then
+    echo "[HOOK] Wine overgeslagen — architectuur is $ARCH (vereist x86_64)"
+    exit 0
+fi
+
+echo "[HOOK] Wine installeren..."
+bash /opt/zolumaos/install-wine.sh
+echo "[HOOK] Wine geïnstalleerd"

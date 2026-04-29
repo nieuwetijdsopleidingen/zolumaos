@@ -1,0 +1,90 @@
+#!/bin/sh
+# Hook: XFCE desktop configureren in de live chroot.
+# Stelt standaardgebruiker "user" in met de ZolumaOS desktop look.
+
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+# Live-build standaardgebruiker is "user"
+LIVE_USER="user"
+LIVE_HOME="/home/$LIVE_USER"
+
+echo "[HOOK] Desktop configureren voor gebruiker: $LIVE_USER"
+
+# GTK-configuratie voor de standaard live gebruiker
+mkdir -p "$LIVE_HOME/.config/xfce4/xfconf/xfce-perchannel-xml"
+
+cat > "$LIVE_HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xsettings" version="1.0">
+  <property name="Net" type="empty">
+    <property name="ThemeName" type="string" value="WhiteSur-Light"/>
+    <property name="IconThemeName" type="string" value="Papirus"/>
+  </property>
+  <property name="Gtk" type="empty">
+    <property name="FontName" type="string" value="Inter 10"/>
+    <property name="CursorThemeName" type="string" value="Adwaita"/>
+  </property>
+</channel>
+EOF
+
+cat > "$LIVE_HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="theme" type="string" value="WhiteSur-Light"/>
+    <property name="title_font" type="string" value="Inter Bold 9"/>
+  </property>
+</channel>
+EOF
+
+# Plank autostart
+mkdir -p "$LIVE_HOME/.config/autostart"
+cat > "$LIVE_HOME/.config/autostart/plank.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Plank
+Comment=ZolumaOS dock
+Exec=plank
+Icon=plank
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+EOF
+
+# Plank configuratie
+mkdir -p "$LIVE_HOME/.config/plank/dock1"
+cat > "$LIVE_HOME/.config/plank/dock1/settings" <<'EOF'
+[PlankDockPreferences]
+CurrentWorkspaceOnly=false
+Theme=Matte
+Alignment=3
+Monitor=-1
+LockItems=false
+MaxIconSize=48
+Position=3
+HideMode=1
+HideDelay=0
+ShowDelay=0
+ZoomEnabled=true
+ZoomPercent=150
+EOF
+
+# Eigenaar instellen
+chown -R "$LIVE_USER:$LIVE_USER" "$LIVE_HOME/.config"
+
+# Firefox user-agent policy
+mkdir -p /etc/firefox/policies
+cat > /etc/firefox/policies/policies.json <<'EOF'
+{
+  "policies": {
+    "Preferences": {
+      "general.useragent.override": {
+        "Value": "Mozilla/5.0 (X11; Linux x86_64; ZolumaOS/1.0) Gecko/20100101 Firefox/124.0",
+        "Status": "locked"
+      }
+    }
+  }
+}
+EOF
+
+echo "[HOOK] Desktop configuratie klaar"

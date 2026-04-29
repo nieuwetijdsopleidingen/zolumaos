@@ -1,0 +1,10 @@
+iso-output/
+Ubuntu/
+build/
+store/backend/db/store.db
+store/backend/node_modules/
+store/frontend/node_modules/
+store/frontend/build/
+*.log
+.env
+.DS_Store

@@ -1,0 +1,19 @@
+#!/bin/sh
+# Hook: Opruimen na installatie — verkleint de ISO.
+
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+echo "[HOOK] Opruimen..."
+
+# APT cache leegmaken
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+# Tijdelijke bestanden verwijderen
+rm -rf /tmp/* /var/tmp/*
+
+# Git repos verwijderen die achtergebleven zijn
+rm -rf /tmp/WhiteSur-gtk-theme
+
+echo "[HOOK] Opruimen klaar"

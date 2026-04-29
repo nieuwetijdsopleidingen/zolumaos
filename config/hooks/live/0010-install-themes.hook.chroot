@@ -1,0 +1,24 @@
+#!/bin/sh
+# Hook: WhiteSur GTK-theme en Papirus iconen installeren in de live chroot.
+# Draait tijdens lb build in de chroot omgeving.
+
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+THEMES_DIR="/usr/share/themes"
+WHITESUR_TMP="/tmp/WhiteSur-gtk-theme"
+
+echo "[HOOK] WhiteSur theme installeren..."
+if [ ! -d "$THEMES_DIR/WhiteSur-Light" ]; then
+    rm -rf "$WHITESUR_TMP"
+    git clone --depth 1 https://github.com/vinceliuice/WhiteSur-gtk-theme.git "$WHITESUR_TMP"
+    cd "$WHITESUR_TMP"
+    bash install.sh --dest "$THEMES_DIR" --name WhiteSur --color light
+    cd /
+    rm -rf "$WHITESUR_TMP"
+    echo "[HOOK] WhiteSur theme geïnstalleerd"
+else
+    echo "[HOOK] WhiteSur theme was al aanwezig"
+fi
+
+echo "[HOOK] Klaar"

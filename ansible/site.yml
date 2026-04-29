@@ -1,0 +1,22 @@
+---
+# ZolumaOS — Hoofd Ansible-playbook
+# Gebruik: ansible-playbook -i inventory.yml site.yml
+# Dry-run: ansible-playbook -i inventory.yml site.yml --check
+
+- name: ZolumaOS volledige configuratie
+  hosts: all
+  become: true
+
+  roles:
+    - role: common     # Basis systeem (tijdzone, locale, updates)
+      tags: [common, always]
+
+    - role: wine       # Wine + Winetricks + binfmt_misc (alleen x86_64)
+      tags: [wine]
+      when: ansible_architecture == 'x86_64'
+
+    - role: desktop    # XFCE + Plank + WhiteSur theme
+      tags: [desktop]
+
+    - role: store      # ZolumaOS Software Store
+      tags: [store]

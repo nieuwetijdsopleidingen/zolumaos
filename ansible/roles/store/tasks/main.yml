@@ -1,0 +1,56 @@
+---
+# Rol: store — ZolumaOS Software Store installatie
+
+- name: Node.js 22 repository toevoegen
+  shell: |
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+  args:
+    creates: /etc/apt/sources.list.d/nodesource.list
+
+- name: Node.js installeren
+  apt:
+    name: nodejs
+    state: present
+    update_cache: true
+
+- name: Store-bestanden naar doelmachine kopiëren
+  copy:
+    src: "{{ playbook_dir }}/../store/backend/"
+    dest: /opt/zolumaos-store/
+    mode: preserve
+
+- name: npm dependencies installeren
+  command: npm install --production
+  args:
+    chdir: /opt/zolumaos-store
+
+- name: Database seeden
+  command: node db/seed.js
+  args:
+    chdir: /opt/zolumaos-store
+  changed_when: true
+
+- name: Systemd-service voor Store aanmaken
+  copy:
+    dest: /etc/systemd/system/zolumaos-store.service
+    content: |
+      [Unit]
+      Description=ZolumaOS Software Store API
+      After=network.target
+
+      [Service]
+      Type=simple
+      WorkingDirectory=/opt/zolumaos-store
+      ExecStart=/usr/bin/node server.js
+      Restart=on-failure
+      Environment=PORT=3001
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Store service inschakelen en starten
+  systemd:
+    name: zolumaos-store
+    enabled: true
+    state: started
+    daemon_reload: true

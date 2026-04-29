@@ -1,0 +1,24 @@
+---
+# Rol: desktop — XFCE + Plank + WhiteSur theme via setup-desktop.sh
+
+- name: setup-desktop.sh naar doelmachine kopiëren
+  copy:
+    src: "{{ playbook_dir }}/../scripts/setup-desktop.sh"
+    dest: /tmp/setup-desktop.sh
+    mode: '0755'
+
+- name: Desktop configuratiescript uitvoeren
+  command: bash /tmp/setup-desktop.sh
+  register: desktop_result
+  changed_when: "'geïnstalleerd' in desktop_result.stdout or 'aangemaakt' in desktop_result.stdout"
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Uitvoer van desktop installatie tonen
+  debug:
+    msg: "{{ desktop_result.stdout_lines }}"
+
+- name: Tijdelijk script opruimen
+  file:
+    path: /tmp/setup-desktop.sh
+    state: absent

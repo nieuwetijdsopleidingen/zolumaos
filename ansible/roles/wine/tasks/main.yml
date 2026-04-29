@@ -1,0 +1,22 @@
+---
+# Rol: wine — Wine installatie via het install-wine.sh script
+
+- name: install-wine.sh naar doelmachine kopiëren
+  copy:
+    src: "{{ playbook_dir }}/../scripts/install-wine.sh"
+    dest: /tmp/install-wine.sh
+    mode: '0755'
+
+- name: Wine installatiescript uitvoeren
+  command: bash /tmp/install-wine.sh
+  register: wine_result
+  changed_when: "'geïnstalleerd' in wine_result.stdout"
+
+- name: Uitvoer van Wine installatie tonen
+  debug:
+    msg: "{{ wine_result.stdout_lines }}"
+
+- name: Tijdelijk installatiescript opruimen
+  file:
+    path: /tmp/install-wine.sh
+    state: absent

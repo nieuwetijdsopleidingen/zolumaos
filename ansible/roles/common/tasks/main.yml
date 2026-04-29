@@ -1,0 +1,48 @@
+---
+# Rol: common — Basis systeemconfiguratie voor ZolumaOS
+
+- name: Systeem bijwerken
+  apt:
+    update_cache: true
+    upgrade: dist
+    cache_valid_time: 3600
+  tags: updates
+
+- name: Tijdzone instellen (Amsterdam)
+  timezone:
+    name: Europe/Amsterdam
+
+- name: Locale instellen (nl_NL.UTF-8)
+  locale_gen:
+    name: nl_NL.UTF-8
+    state: present
+
+- name: Standaard locale instellen
+  lineinfile:
+    path: /etc/default/locale
+    regexp: "^LANG="
+    line: "LANG=nl_NL.UTF-8"
+    create: true
+
+- name: Onbeheerde upgrades inschakelen
+  apt:
+    name: unattended-upgrades
+    state: present
+
+- name: Basis hulpprogramma's installeren
+  apt:
+    name:
+      - curl
+      - wget
+      - git
+      - htop
+      - net-tools
+      - ca-certificates
+      - software-properties-common
+      - apt-transport-https
+    state: present
+
+- name: Onnodige pakketten verwijderen
+  apt:
+    autoremove: true
+    purge: true

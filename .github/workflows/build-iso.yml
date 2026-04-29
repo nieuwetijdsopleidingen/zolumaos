@@ -1,0 +1,101 @@
+name: Build ZolumaOS ISO
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versienummer (bijv. 1.0)'
+        required: false
+        default: '1.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install live-build
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y live-build
+
+      - name: Maak build directory aan
+        run: mkdir -p build
+
+      - name: Initialiseer live-build configuratie
+        working-directory: build
+        run: |
+          cp -r ../config .
+          chmod +x config/auto/config
+          lb config
+
+      - name: Kopieer scripts en hooks
+        working-directory: build
+        run: |
+          cp -r ../config/hooks/live config/hooks/live/ 2>/dev/null || true
+          cp -r ../config/includes.chroot config/ 2>/dev/null || true
+
+      - name: Kopieer installatiescripts naar chroot
+        working-directory: build
+        run: |
+          mkdir -p config/includes.chroot/opt/zolumaos
+          cp ../scripts/install-wine.sh config/includes.chroot/opt/zolumaos/
+          cp ../scripts/setup-desktop.sh config/includes.chroot/opt/zolumaos/
+          chmod +x config/includes.chroot/opt/zolumaos/*.sh
+
+      - name: Bouw ISO
+        working-directory: build
+        run: sudo lb build 2>&1 | tee ../build.log
+
+      - name: Hernoem ISO naar versie
+        run: |
+          VERSION="${{ github.event.inputs.version || '1.0' }}"
+          ISO=$(ls build/zolumaos-*.iso 2>/dev/null | head -1)
+          if [ -n "$ISO" ]; then
+            mv "$ISO" "zolumaos-${VERSION}-amd64.iso"
+          fi
+
+      - name: Upload ISO als artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zolumaos-iso
+          path: zolumaos-*.iso
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload build log als artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Maak GitHub Release aan (alleen bij tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: zolumaos-*.iso
+          body: |
+            ## ZolumaOS ${{ github.ref_name }}
+
+            ### Wat is ZolumaOS?
+            Een gebruiksvriendelijke Linux-distributie gebaseerd op Ubuntu, met:
+            - Wine/Proton standaard geïntegreerd (.exe werkt direct)
+            - XFCE desktop met moderne uitstraling
+            - Ingebouwde ZolumaOS Store
+            - Ondersteuning voor hardware vanaf 2010
+
+            ### Installatie
+            1. Download de ISO
+            2. Brandop op USB (bijv. met [Rufus](https://rufus.ie) of [Etcher](https://etcher.balena.io))
+            3. Start op vanaf USB en volg de installatie-assistent
+          draft: false
+          prerelease: false

@@ -1,0 +1,24 @@
+---
+# ZolumaOS Ansible Inventory
+# Pas IP-adressen en gebruikersnamen aan naar jouw omgeving.
+
+all:
+  vars:
+    ansible_user: zoluma            # SSH-gebruiker op de doelmachines
+    ansible_python_interpreter: /usr/bin/python3
+
+  children:
+    school:
+      hosts:
+        zolumaos-test:
+          ansible_host: 192.168.64.2
+          machine_label: "UTM testmachine"
+        # school-pc-01:
+        #   ansible_host: 192.168.1.101
+        #   machine_label: "Lokaal 1 — PC 1"
+        # school-pc-02:
+        #   ansible_host: 192.168.1.102
+        #   machine_label: "Lokaal 1 — PC 2"
+        # school-pc-03:
+        #   ansible_host: 192.168.1.103
+        #   machine_label: "Lokaal 1 — PC 3"
