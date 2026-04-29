@@ -38,8 +38,9 @@ jobs:
           echo "=== Zoeken naar syslinux script ==="
           SYSLINUX_SCRIPT=$(grep -rl "syslinux-themes-ubuntu\|gfxboot-theme-ubuntu" /usr/lib/live/ /usr/share/live/ 2>/dev/null | head -1)
           if [ -n "$SYSLINUX_SCRIPT" ]; then
-            echo "Gevonden: $SYSLINUX_SCRIPT — vervangen door stub"
-            printf '#!/bin/sh\necho "P: Syslinux overgeslagen (pakketten niet beschikbaar in noble)"\nexit 0\n' | sudo tee "$SYSLINUX_SCRIPT"
+            echo "Gevonden: $SYSLINUX_SCRIPT — vervangen door minimale syslinux setup"
+            sudo cp scripts/syslinux-minimal.sh "$SYSLINUX_SCRIPT"
+            sudo chmod +x "$SYSLINUX_SCRIPT"
           else
             echo "Script niet gevonden via grep — zoeken op naam:"
             find /usr/lib/live/ /usr/share/live/ -name "*syslinux*" 2>/dev/null
