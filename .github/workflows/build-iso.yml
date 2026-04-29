@@ -97,17 +97,25 @@ jobs:
         if: always()
         run: df -h
 
+      - name: Debug build output
+        if: always()
+        run: |
+          echo "=== build/ inhoud ==="
+          ls -lah build/ 2>/dev/null || echo "(build/ niet gevonden)"
+          echo "=== ISO/IMG bestanden ==="
+          find build/ -maxdepth 2 \( -name "*.iso" -o -name "*.img" -o -name "*.hybrid.iso" \) 2>/dev/null || echo "(niets gevonden)"
+
       - name: Hernoem ISO naar versie
         if: always()
         run: |
           VERSION="${{ github.event.inputs.version || '1.0' }}"
-          ISO=$(ls build/*.iso 2>/dev/null | head -1)
+          ISO=$(find build/ -maxdepth 2 \( -name "*.iso" -o -name "*.img" \) 2>/dev/null | head -1)
           if [ -n "$ISO" ]; then
             mv "$ISO" "zolumaos-${VERSION}-amd64.iso"
-            echo "ISO hernoemd: zolumaos-${VERSION}-amd64.iso"
+            echo "ISO hernoemd: zolumaos-${VERSION}-amd64.iso (was: $ISO)"
           else
-            echo "Geen ISO gevonden in build/:"
-            ls -lah build/ || true
+            echo "Geen ISO gevonden — volledige build/ listing:"
+            find build/ -maxdepth 3 -ls 2>/dev/null | head -50 || true
           fi
 
       - name: Upload ISO als artifact
