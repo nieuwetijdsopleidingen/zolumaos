@@ -33,7 +33,12 @@ jobs:
       - name: Install live-build
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y live-build syslinux-utils
+          sudo apt-get install -y live-build syslinux-utils || true
+          # Maak isohybrid stub als pakket het niet levert (noble)
+          if ! command -v isohybrid >/dev/null 2>&1; then
+            printf '#!/bin/sh\necho "isohybrid: overgeslagen (niet beschikbaar op noble)"\n' | sudo tee /usr/local/bin/isohybrid
+            sudo chmod +x /usr/local/bin/isohybrid
+          fi
           # Zoek en vervang binary_syslinux door een stub (pakket bestaat niet in noble)
           echo "=== Zoeken naar syslinux script ==="
           SYSLINUX_SCRIPT=$(grep -rl "syslinux-themes-ubuntu\|gfxboot-theme-ubuntu" /usr/lib/live/ /usr/share/live/ 2>/dev/null | head -1)
