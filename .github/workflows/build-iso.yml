@@ -34,15 +34,21 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y live-build
-          # Zoek en patch het syslinux build script
-          echo "=== Live-build syslinux scripts ==="
-          find /usr/lib/live/ -name "*syslinux*" 2>/dev/null || echo "(geen syslinux script gevonden)"
-          grep -rl "syslinux-themes-ubuntu\|gfxboot-theme-ubuntu" /usr/lib/live/ 2>/dev/null | tee /tmp/syslinux_scripts.txt || true
-          while IFS= read -r SCRIPT; do
-            echo "Patching: $SCRIPT"
-            sudo sed -i '/syslinux-themes-ubuntu/d' "$SCRIPT"
-            sudo sed -i '/gfxboot-theme-ubuntu/d' "$SCRIPT"
-          done < /tmp/syslinux_scripts.txt
+          # Dummy pakketten aanmaken voor ontbrekende syslinux-thema's
+          sudo apt-get install -y equivs
+          mkdir -p /tmp/dummies && cd /tmp/dummies
+          for PKG in syslinux-themes-ubuntu-oneiric gfxboot-theme-ubuntu; do
+            cat > ${PKG}.ctl << EOF
+Package: ${PKG}
+Version: 0.0.1
+Architecture: all
+Maintainer: ZolumaOS Build <build@zoluma.org>
+Description: Dummy package for ZolumaOS build
+EOF
+            equivs-build ${PKG}.ctl
+            sudo dpkg -i ${PKG}_0.0.1_all.deb
+          done
+          cd -
 
       - name: Maak build directory aan
         run: mkdir -p build
