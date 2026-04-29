@@ -38,15 +38,9 @@ jobs:
           sudo apt-get install -y equivs
           mkdir -p /tmp/dummies && cd /tmp/dummies
           for PKG in syslinux-themes-ubuntu-oneiric gfxboot-theme-ubuntu; do
-            cat > ${PKG}.ctl << EOF
-Package: ${PKG}
-Version: 0.0.1
-Architecture: all
-Maintainer: ZolumaOS Build <build@zoluma.org>
-Description: Dummy package for ZolumaOS build
-EOF
-            equivs-build ${PKG}.ctl
-            sudo dpkg -i ${PKG}_0.0.1_all.deb
+            printf 'Package: %s\nVersion: 0.0.1\nArchitecture: all\nMaintainer: ZolumaOS Build <build@zoluma.org>\nDescription: Dummy package for ZolumaOS build\n' "$PKG" > "${PKG}.ctl"
+            equivs-build "${PKG}.ctl"
+            sudo dpkg -i "${PKG}_0.0.1_all.deb"
           done
           cd -
 
