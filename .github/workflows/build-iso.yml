@@ -56,6 +56,8 @@ jobs:
           chmod +x config/includes.chroot/opt/zolumaos/*.sh
           # lb config uitvoeren (roept auto/config aan)
           lb config
+          # Syslinux uitschakelen — pakket bestaat niet meer in noble
+          echo 'LB_SYSLINUX="false"' >> config/binary
 
       - name: Schijfruimte voor build
         run: df -h
