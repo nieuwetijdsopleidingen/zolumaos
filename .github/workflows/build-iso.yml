@@ -36,8 +36,8 @@ jobs:
           sudo apt-get install -y live-build syslinux-utils || true
           # Maak isohybrid stub als pakket het niet levert (noble)
           if ! command -v isohybrid >/dev/null 2>&1; then
-            printf '#!/bin/sh\necho "isohybrid: overgeslagen (niet beschikbaar op noble)"\n' | sudo tee /usr/local/bin/isohybrid
-            sudo chmod +x /usr/local/bin/isohybrid
+            printf '#!/bin/sh\necho "isohybrid: overgeslagen (niet beschikbaar op noble)"\n' | sudo tee /usr/bin/isohybrid
+            sudo chmod +x /usr/bin/isohybrid
           fi
           # Zoek en vervang binary_syslinux door een stub (pakket bestaat niet in noble)
           echo "=== Zoeken naar syslinux script ==="
