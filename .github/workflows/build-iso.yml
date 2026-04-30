@@ -35,37 +35,17 @@ jobs:
       - name: Install live-build
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y live-build syslinux-utils xorriso || true
-          # Stub live-build cache scripts uit — voorkomen dat lb_chroot_cache restore
-          # de bootstrap cache als volledige chroot herstelt en alles overslaat
-          echo "=== Live-build cache scripts stubben ==="
-          for script_name in bootstrap_cache chroot_cache; do
-            SCRIPT=$(find /usr/lib/live/build/ /usr/share/live/build/ -name "*${script_name}*" 2>/dev/null | head -1)
-            if [ -n "$SCRIPT" ]; then
-              echo "Disabling: $SCRIPT"
-              printf '#!/bin/sh\n# Cache disabled for GitHub Actions\nexit 0\n' | sudo tee "$SCRIPT" > /dev/null
-              sudo chmod +x "$SCRIPT"
-            else
-              echo "Script ${script_name} niet gevonden — fallback:"
-              find /usr/lib/live/ /usr/share/live/ -name "*cache*" 2>/dev/null | head -5
-            fi
-          done
-          # Neutraliseer isohybrid aanroepen direct in live-build scripts (noble heeft het niet)
-          echo "=== Zoeken naar isohybrid in live-build ==="
+          sudo apt-get install -y live-build xorriso isolinux || true
+          # Neutraliseer isohybrid aanroepen (noble heeft het niet)
           for f in $(grep -rl "isohybrid" /usr/lib/live/ /usr/share/live/ 2>/dev/null); do
             echo "Patching isohybrid in: $f"
             sudo sed -i 's/\bisohybrid\b/true/g' "$f"
           done
-          # Zoek en vervang binary_syslinux door een stub (pakket bestaat niet in noble)
-          echo "=== Zoeken naar syslinux script ==="
+          # Syslinux script stubben (pakket bestaat niet in noble)
           SYSLINUX_SCRIPT=$(grep -rl "syslinux-themes-ubuntu\|gfxboot-theme-ubuntu" /usr/lib/live/ /usr/share/live/ 2>/dev/null | head -1)
           if [ -n "$SYSLINUX_SCRIPT" ]; then
-            echo "Gevonden: $SYSLINUX_SCRIPT — vervangen door minimale syslinux setup"
-            sudo cp scripts/syslinux-minimal.sh "$SYSLINUX_SCRIPT"
+            printf '#!/bin/sh\nexit 0\n' | sudo tee "$SYSLINUX_SCRIPT" > /dev/null
             sudo chmod +x "$SYSLINUX_SCRIPT"
-          else
-            echo "Script niet gevonden via grep — zoeken op naam:"
-            find /usr/lib/live/ /usr/share/live/ -name "*syslinux*" 2>/dev/null
           fi
 
       - name: Maak build directory aan
@@ -74,50 +54,141 @@ jobs:
       - name: Initialiseer live-build configuratie
         working-directory: build
         run: |
-          # auto/config moet in de root van de build directory staan (niet in config/)
           mkdir -p auto
           cp ../auto/config auto/config
           chmod +x auto/config
-          # Overige config mappen overnemen
           cp -r ../config/package-lists config/
           cp -r ../config/hooks config/
           cp -r ../config/includes.chroot config/ 2>/dev/null || true
-          # Installatiescripts in chroot plaatsen
           mkdir -p config/includes.chroot/opt/zolumaos
           cp ../scripts/install-wine.sh config/includes.chroot/opt/zolumaos/
           cp ../scripts/setup-desktop.sh config/includes.chroot/opt/zolumaos/
           chmod +x config/includes.chroot/opt/zolumaos/*.sh
-          # lb config uitvoeren (roept auto/config aan)
           lb config
-          # Syslinux uitschakelen — pakket bestaat niet meer in noble
-          echo "=== config/binary syslinux instelling ==="
-          grep -i syslinux config/binary || echo "(geen syslinux regel gevonden)"
-          sed -i 's/^LB_SYSLINUX=.*/LB_SYSLINUX="false"/' config/binary
-          grep -q 'LB_SYSLINUX' config/binary || echo 'LB_SYSLINUX="false"' >> config/binary
-          echo "=== na patch ==="
-          grep -i syslinux config/binary || echo "(geen syslinux regel)"
 
       - name: Schijfruimte voor build
         run: df -h
-
-      - name: Controleer calamares beschikbaarheid
-        run: |
-          sudo apt-get update -qq
-          echo "=== apt-cache show calamares ==="
-          apt-cache show calamares 2>&1 | head -20 || echo "calamares NIET gevonden in apt"
-          echo "=== apt-get install dry-run ==="
-          apt-get install -s calamares 2>&1 | tail -20 || echo "dry-run mislukt"
 
       - name: Bouw ISO
         working-directory: build
         run: |
           set -o pipefail
-          sudo rm -rf cache/ chroot/ binary binary.* .build/
-          echo "=== Package lists vlak voor lb build ==="
-          ls -la config/package-lists/ 2>/dev/null || echo "(directory niet gevonden)"
-          echo "--- Inhoud zolumaos.list.chroot ---"
-          cat config/package-lists/zolumaos.list.chroot 2>/dev/null | head -20 || echo "(bestand niet gevonden)"
-          sudo lb build 2>&1 | tee ../build.log
+
+          # Clean vorige build-output; bewaar config/ en .build/config
+          sudo rm -rf cache/ chroot/ binary binary.*
+          sudo rm -f .build/bootstrap .build/chroot .build/binary
+          mkdir -p .build
+
+          # ──────────────────────────────────────────────────────────────
+          # FASE 1: lb bootstrap — debootstrap minimale chroot (~350 pkgs)
+          # ──────────────────────────────────────────────────────────────
+          echo "=== FASE 1: lb bootstrap ==="
+          sudo lb bootstrap 2>&1 | tee ../build.log
+          echo "Bootstrap klaar — packages:"
+          sudo chroot chroot dpkg -l 2>/dev/null | wc -l
+
+          # ──────────────────────────────────────────────────────────────
+          # FASE 2: Handmatige pakketinstallatie (omzeil kapotte lb chroot)
+          # ──────────────────────────────────────────────────────────────
+          echo "=== FASE 2: Handmatige chroot-setup ==="
+
+          # Dienststart voorkomen in chroot
+          printf '#!/bin/sh\nexit 101\n' | sudo tee chroot/usr/sbin/policy-rc.d > /dev/null
+          sudo chmod +x chroot/usr/sbin/policy-rc.d
+
+          # Bind mounts
+          sudo mount --bind /proc    chroot/proc
+          sudo mount --bind /sys     chroot/sys
+          sudo mount --bind /dev     chroot/dev
+          sudo mount --bind /dev/pts chroot/dev/pts
+
+          # DNS
+          echo "nameserver 8.8.8.8" | sudo tee chroot/etc/resolv.conf > /dev/null
+
+          # includes.chroot kopiëren (normaal door lb chroot gedaan)
+          if [ -d config/includes.chroot ]; then
+            sudo cp -r config/includes.chroot/. chroot/
+            echo "includes.chroot gekopieerd"
+          fi
+
+          # apt update in chroot
+          sudo chroot chroot apt-get update -qq 2>&1 | tee -a ../build.log
+
+          # Live-systeem basisondersteuning
+          echo "--- Live-systeem pakketten ---"
+          sudo chroot chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            live-config live-config-systemd live-boot live-boot-initramfs-tools \
+            ca-certificates \
+            2>&1 | tee -a ../build.log
+
+          # Desktop en applicatiepakketten
+          echo "--- Desktop pakketten ---"
+          sudo chroot chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            xfce4 xfce4-goodies xfce4-terminal xfce4-power-manager xfce4-notifyd \
+            xfce4-screenshooter thunar thunar-volman thunar-archive-plugin gvfs-backends \
+            lightdm lightdm-gtk-greeter plank \
+            git gtk2-engines-murrine gtk2-engines-pixbuf sassc papirus-icon-theme \
+            firefox \
+            network-manager network-manager-gnome \
+            htop curl wget unzip file-roller evince \
+            fonts-noto fonts-noto-color-emoji \
+            python3-yaml \
+            grub-pc-bin grub-efi-amd64-bin grub-efi-amd64-signed efibootmgr os-prober \
+            parted gdisk squashfs-tools \
+            2>&1 | tee -a ../build.log
+
+          # Live gebruiker aanmaken (normaal door lb chroot gedaan)
+          sudo chroot chroot useradd -m -s /bin/bash \
+            -G sudo,audio,video,netdev,plugdev user 2>/dev/null || true
+          echo "user:live" | sudo chroot chroot chpasswd 2>/dev/null || true
+
+          # Wine (apart — kan falen als repo niet beschikbaar)
+          echo "--- Wine ---"
+          sudo chroot chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y wine \
+            2>&1 | tee -a ../build.log || echo "wine niet beschikbaar — sla over"
+
+          # Calamares (apart voor duidelijke foutmelding)
+          echo "--- Calamares ---"
+          sudo chroot chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y calamares \
+            2>&1 | tee -a ../build.log || echo "calamares NIET geinstalleerd"
+
+          # initramfs bijwerken na pakketinstallatie
+          echo "--- initramfs update ---"
+          sudo chroot chroot update-initramfs -u 2>&1 | tee -a ../build.log || true
+
+          # Hooks uitvoeren (numerieke volgorde via bestandsnaam)
+          echo "=== Hooks uitvoeren ==="
+          for hook in $(ls config/hooks/live/*.hook.chroot 2>/dev/null | sort); do
+            hookname=$(basename "$hook")
+            echo "--- Hook: $hookname ---"
+            sudo cp "$hook" chroot/tmp/_hook.sh
+            sudo chmod +x chroot/tmp/_hook.sh
+            sudo chroot chroot /tmp/_hook.sh 2>&1 | tee -a ../build.log || \
+              echo "WAARSCHUWING: $hookname mislukt (niet fataal)"
+            sudo rm -f chroot/tmp/_hook.sh
+          done
+
+          # Bind mounts opruimen
+          sudo umount -l chroot/dev/pts 2>/dev/null || true
+          sudo umount -l chroot/dev     2>/dev/null || true
+          sudo umount -l chroot/sys     2>/dev/null || true
+          sudo umount -l chroot/proc    2>/dev/null || true
+          sudo rm -f chroot/usr/sbin/policy-rc.d
+
+          echo "Chroot klaar — totaal packages:"
+          sudo chroot chroot dpkg -l 2>/dev/null | wc -l
+
+          # Markeer chroot fase als voltooid zodat lb binary dit overslaat
+          sudo touch .build/chroot
+
+          # ──────────────────────────────────────────────────────────────
+          # FASE 3: lb binary — maakt ISO van de opgezette chroot
+          # ──────────────────────────────────────────────────────────────
+          echo "=== FASE 3: lb binary ==="
+          # Syslinux uitschakelen in config/binary
+          sed -i 's/^LB_SYSLINUX=.*/LB_SYSLINUX="false"/' config/binary 2>/dev/null || true
+          grep -q 'LB_SYSLINUX' config/binary 2>/dev/null || echo 'LB_SYSLINUX="false"' >> config/binary
+          sudo lb binary 2>&1 | tee -a ../build.log
 
       - name: Maak ISO hybrid bootable
         if: always()
@@ -126,8 +197,6 @@ jobs:
           ISO=$(find . -maxdepth 1 -name "*.iso" | head -1)
           if [ -z "$ISO" ]; then echo "Geen ISO gevonden"; exit 0; fi
           echo "ISO gevonden: $ISO"
-          # isohdpfx.bin zit in het 'isolinux' pakket (niet syslinux-common) op noble
-          sudo apt-get install -y isolinux syslinux-common 2>/dev/null || true
           echo "=== Beschikbare .bin bestanden ==="
           find /usr/lib/ISOLINUX/ /usr/lib/syslinux/ /usr/share/syslinux/ -name "*.bin" 2>/dev/null | sort
           MBR=""
@@ -148,7 +217,7 @@ jobs:
         if: always()
         run: |
           echo "=== Key package check ==="
-          for pkg in xfce4 xfwm4 lightdm firefox wine calamares plank network-manager; do
+          for pkg in xfce4 xfwm4 lightdm firefox wine calamares plank network-manager live-config; do
             if grep -qE "^${pkg}(\s|$)" build/binary.packages 2>/dev/null; then
               echo "  ✓ $pkg"
             else
@@ -157,21 +226,15 @@ jobs:
           done
           echo ""
           echo "Totaal packages in ISO: $(wc -l < build/binary.packages 2>/dev/null || echo '?')"
-          echo ""
-          echo "=== Hooks aanwezig in config/hooks/live/ ==="
-          ls build/config/hooks/live/ 2>/dev/null || echo "(directory niet gevonden)"
 
       - name: Analyseer build log
         if: always()
         run: |
-          echo "=== lb_chroot_package-lists in log ==="
-          grep "lb_chroot_package" build.log | head -5 || echo "(niet gevonden — stage werd overgeslagen)"
+          echo "=== FASE 2: Pakketinstallatie ==="
+          grep -E "^(--- |WAARSCHUWING:|Unpacking|Setting up|E:)" build.log | head -40 || true
           echo ""
-          echo "=== lb_chroot_hooks in log ==="
-          grep "lb_chroot_hooks" build.log | head -5 || echo "(niet gevonden — hooks werden overgeslagen)"
-          echo ""
-          echo "=== Eerste 5 lb_chroot regels ==="
-          grep "lb_chroot" build.log | head -10
+          echo "=== FASE 3: lb binary uitkomst ==="
+          grep -E "^(lb binary|P:|N:|E:|W:)" build.log | head -20 || true
           echo ""
           echo "=== Einde build log (laatste 50 regels) ==="
           tail -50 build.log
