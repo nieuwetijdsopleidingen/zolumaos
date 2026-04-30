@@ -10,4 +10,5 @@ lb config noauto \
     --bootappend-live "boot=live components locales=nl_NL.UTF-8 keyboard-layouts=nl timezone=Europe/Amsterdam" \
     --iso-volume "ZolumaOS" \
     --iso-application "ZolumaOS" \
+    --cache false \
     "${@}"
