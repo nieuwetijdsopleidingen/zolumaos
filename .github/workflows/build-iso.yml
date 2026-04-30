@@ -113,8 +113,10 @@ jobs:
         run: |
           set -o pipefail
           sudo rm -rf cache/ chroot/ binary binary.* .build/
-          echo "=== Controleer of calamares hook aanwezig is ==="
-          ls -la config/hooks/live/ | grep calamares || echo "WAARSCHUWING: geen calamares hook gevonden"
+          echo "=== Package lists vlak voor lb build ==="
+          ls -la config/package-lists/ 2>/dev/null || echo "(directory niet gevonden)"
+          echo "--- Inhoud zolumaos.list.chroot ---"
+          cat config/package-lists/zolumaos.list.chroot 2>/dev/null | head -20 || echo "(bestand niet gevonden)"
           sudo lb build 2>&1 | tee ../build.log
 
       - name: Maak ISO hybrid bootable
@@ -159,9 +161,20 @@ jobs:
           echo "=== Hooks aanwezig in config/hooks/live/ ==="
           ls build/config/hooks/live/ 2>/dev/null || echo "(directory niet gevonden)"
 
-      - name: Toon einde build log
+      - name: Analyseer build log
         if: always()
-        run: tail -100 build.log || true
+        run: |
+          echo "=== lb_chroot_package-lists in log ==="
+          grep "lb_chroot_package" build.log | head -5 || echo "(niet gevonden — stage werd overgeslagen)"
+          echo ""
+          echo "=== lb_chroot_hooks in log ==="
+          grep "lb_chroot_hooks" build.log | head -5 || echo "(niet gevonden — hooks werden overgeslagen)"
+          echo ""
+          echo "=== Eerste 5 lb_chroot regels ==="
+          grep "lb_chroot" build.log | head -10
+          echo ""
+          echo "=== Einde build log (laatste 50 regels) ==="
+          tail -50 build.log
 
       - name: Schijfruimte na build
         if: always()
