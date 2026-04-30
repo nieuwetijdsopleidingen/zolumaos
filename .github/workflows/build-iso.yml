@@ -36,6 +36,20 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y live-build syslinux-utils xorriso || true
+          # Stub live-build cache scripts uit — voorkomen dat lb_chroot_cache restore
+          # de bootstrap cache als volledige chroot herstelt en alles overslaat
+          echo "=== Live-build cache scripts stubben ==="
+          for script_name in bootstrap_cache chroot_cache; do
+            SCRIPT=$(find /usr/lib/live/build/ /usr/share/live/build/ -name "*${script_name}*" 2>/dev/null | head -1)
+            if [ -n "$SCRIPT" ]; then
+              echo "Disabling: $SCRIPT"
+              printf '#!/bin/sh\n# Cache disabled for GitHub Actions\nexit 0\n' | sudo tee "$SCRIPT" > /dev/null
+              sudo chmod +x "$SCRIPT"
+            else
+              echo "Script ${script_name} niet gevonden — fallback:"
+              find /usr/lib/live/ /usr/share/live/ -name "*cache*" 2>/dev/null | head -5
+            fi
+          done
           # Neutraliseer isohybrid aanroepen direct in live-build scripts (noble heeft het niet)
           echo "=== Zoeken naar isohybrid in live-build ==="
           for f in $(grep -rl "isohybrid" /usr/lib/live/ /usr/share/live/ 2>/dev/null); do
