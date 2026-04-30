@@ -98,9 +98,23 @@ jobs:
         working-directory: build
         run: |
           ISO=$(find . -maxdepth 1 -name "*.iso" | head -1)
-          if [ -n "$ISO" ]; then
-            echo "xorriso hybrid MBR toevoegen aan: $ISO"
-            xorriso -as isohybrid "$ISO" 2>&1 && echo "Hybrid MBR toegevoegd" || echo "xorriso isohybrid niet ondersteund, ISO blijft als-is"
+          if [ -z "$ISO" ]; then echo "Geen ISO gevonden"; exit 0; fi
+          echo "ISO gevonden: $ISO"
+          # Zoek syslinux isohdpfx.bin (hybrid MBR prefix, 432 bytes)
+          sudo apt-get install -y syslinux-common 2>/dev/null || true
+          MBR=""
+          for f in /usr/lib/syslinux/mbr/isohdpfx.bin \
+                   /usr/lib/syslinux/mbr/isohdppx.bin \
+                   /usr/share/syslinux/isohdpfx.bin; do
+            [ -f "$f" ] && MBR="$f" && break
+          done
+          if [ -n "$MBR" ]; then
+            echo "Hybrid MBR injecteren uit: $MBR"
+            sudo dd if="$MBR" of="$ISO" bs=1 count=432 conv=notrunc status=none
+            echo "Hybrid MBR toegevoegd — ISO is nu USB-bootbaar (BIOS + UEFI)"
+          else
+            echo "isohdpfx.bin niet gevonden:"
+            find /usr/lib/syslinux/ /usr/share/syslinux/ -name "*.bin" 2>/dev/null | head -10
           fi
 
       - name: Toon einde build log
