@@ -35,7 +35,7 @@ jobs:
       - name: Install live-build
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y live-build syslinux-utils || true
+          sudo apt-get install -y live-build syslinux-utils xorriso || true
           # Neutraliseer isohybrid aanroepen direct in live-build scripts (noble heeft het niet)
           echo "=== Zoeken naar isohybrid in live-build ==="
           for f in $(grep -rl "isohybrid" /usr/lib/live/ /usr/share/live/ 2>/dev/null); do
@@ -92,6 +92,16 @@ jobs:
           set -o pipefail
           sudo rm -rf cache/ chroot/ binary binary.* .build/
           sudo lb build 2>&1 | tee ../build.log
+
+      - name: Maak ISO hybrid bootable
+        if: always()
+        working-directory: build
+        run: |
+          ISO=$(find . -maxdepth 1 -name "*.iso" | head -1)
+          if [ -n "$ISO" ]; then
+            echo "xorriso hybrid MBR toevoegen aan: $ISO"
+            xorriso -as isohybrid "$ISO" 2>&1 && echo "Hybrid MBR toegevoegd" || echo "xorriso isohybrid niet ondersteund, ISO blijft als-is"
+          fi
 
       - name: Toon einde build log
         if: always()
