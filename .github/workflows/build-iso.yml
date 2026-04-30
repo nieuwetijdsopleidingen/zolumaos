@@ -86,6 +86,14 @@ jobs:
       - name: Schijfruimte voor build
         run: df -h
 
+      - name: Controleer calamares beschikbaarheid
+        run: |
+          sudo apt-get update -qq
+          echo "=== apt-cache show calamares ==="
+          apt-cache show calamares 2>&1 | head -20 || echo "calamares NIET gevonden in apt"
+          echo "=== apt-get install dry-run ==="
+          apt-get install -s calamares 2>&1 | tail -20 || echo "dry-run mislukt"
+
       - name: Bouw ISO
         working-directory: build
         run: |
@@ -100,11 +108,13 @@ jobs:
           ISO=$(find . -maxdepth 1 -name "*.iso" | head -1)
           if [ -z "$ISO" ]; then echo "Geen ISO gevonden"; exit 0; fi
           echo "ISO gevonden: $ISO"
-          # Zoek syslinux isohdpfx.bin (hybrid MBR prefix, 432 bytes)
-          sudo apt-get install -y syslinux-common 2>/dev/null || true
+          # isohdpfx.bin zit in het 'isolinux' pakket (niet syslinux-common) op noble
+          sudo apt-get install -y isolinux syslinux-common 2>/dev/null || true
+          echo "=== Beschikbare .bin bestanden ==="
+          find /usr/lib/ISOLINUX/ /usr/lib/syslinux/ /usr/share/syslinux/ -name "*.bin" 2>/dev/null | sort
           MBR=""
-          for f in /usr/lib/syslinux/mbr/isohdpfx.bin \
-                   /usr/lib/syslinux/mbr/isohdppx.bin \
+          for f in /usr/lib/ISOLINUX/isohdpfx.bin \
+                   /usr/lib/syslinux/mbr/isohdpfx.bin \
                    /usr/share/syslinux/isohdpfx.bin; do
             [ -f "$f" ] && MBR="$f" && break
           done
@@ -113,8 +123,7 @@ jobs:
             sudo dd if="$MBR" of="$ISO" bs=1 count=432 conv=notrunc status=none
             echo "Hybrid MBR toegevoegd — ISO is nu USB-bootbaar (BIOS + UEFI)"
           else
-            echo "isohdpfx.bin niet gevonden:"
-            find /usr/lib/syslinux/ /usr/share/syslinux/ -name "*.bin" 2>/dev/null | head -10
+            echo "WAARSCHUWING: isohdpfx.bin niet gevonden — ISO niet hybrid bootable"
           fi
 
       - name: Toon einde build log
