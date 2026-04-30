@@ -132,17 +132,22 @@ jobs:
             echo "WAARSCHUWING: isohdpfx.bin niet gevonden — ISO niet hybrid bootable"
           fi
 
-      - name: Controleer calamares in ISO
+      - name: Controleer packages in ISO
         if: always()
         run: |
-          if grep -q "^calamares" build/binary.packages 2>/dev/null; then
-            echo "✓ calamares AANWEZIG in binary.packages"
-            grep calamares build/binary.packages
-          else
-            echo "✗ calamares NIET gevonden in binary.packages"
-            echo "--- binary.packages (laatste 20 regels) ---"
-            tail -20 build/binary.packages 2>/dev/null || echo "(bestand niet gevonden)"
-          fi
+          echo "=== Key package check ==="
+          for pkg in xfce4 xfwm4 lightdm firefox wine calamares plank network-manager; do
+            if grep -qE "^${pkg}(\s|$)" build/binary.packages 2>/dev/null; then
+              echo "  ✓ $pkg"
+            else
+              echo "  ✗ $pkg NIET aanwezig"
+            fi
+          done
+          echo ""
+          echo "Totaal packages in ISO: $(wc -l < build/binary.packages 2>/dev/null || echo '?')"
+          echo ""
+          echo "=== Hooks aanwezig in config/hooks/live/ ==="
+          ls build/config/hooks/live/ 2>/dev/null || echo "(directory niet gevonden)"
 
       - name: Toon einde build log
         if: always()
