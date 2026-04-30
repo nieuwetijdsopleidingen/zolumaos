@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+
+echo "=== Calamares installatie ==="
+apt-get update -qq
+
+echo "--- apt-get install dry-run ---"
+apt-get install -s calamares 2>&1 | grep -E "(calamares|ERROR|Depends|Conflict)" || true
+
+echo "--- Installeren ---"
+DEBIAN_FRONTEND=noninteractive apt-get install -y calamares
+
+echo "Calamares versie: $(dpkg -l calamares 2>/dev/null | grep calamares | awk '{print $3}')"

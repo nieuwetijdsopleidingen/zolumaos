@@ -47,7 +47,7 @@ fonts-noto
 fonts-noto-color-emoji
 
 # ── Installer ────────────────────────────────────────────
-calamares
+# calamares wordt via hook 0045 geinstalleerd (los van de rest om conflicts te detecteren)
 python3-yaml
 # Bootloader (BIOS + UEFI, bins zonder conflicts)
 grub-pc-bin
