@@ -99,10 +99,6 @@ jobs:
         run: |
           set -o pipefail
           sudo rm -rf cache/ chroot/ binary binary.* .build/
-          # Forceer live-build om chroot NOOIT te cachen/herstellen
-          # config/common bevat LB_CACHE — patchen vóór lb build
-          sudo sed -i 's/^LB_CACHE=.*/LB_CACHE="false"/' config/common 2>/dev/null || true
-          grep -E "^LB_CACHE" config/common || echo "(LB_CACHE niet gevonden in config/common)"
           echo "=== Controleer of calamares hook aanwezig is ==="
           ls -la config/hooks/live/ | grep calamares || echo "WAARSCHUWING: geen calamares hook gevonden"
           sudo lb build 2>&1 | tee ../build.log
