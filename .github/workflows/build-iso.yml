@@ -99,6 +99,12 @@ jobs:
         run: |
           set -o pipefail
           sudo rm -rf cache/ chroot/ binary binary.* .build/
+          # Forceer live-build om chroot NOOIT te cachen/herstellen
+          # config/common bevat LB_CACHE — patchen vóór lb build
+          sudo sed -i 's/^LB_CACHE=.*/LB_CACHE="false"/' config/common 2>/dev/null || true
+          grep -E "^LB_CACHE" config/common || echo "(LB_CACHE niet gevonden in config/common)"
+          echo "=== Controleer of calamares hook aanwezig is ==="
+          ls -la config/hooks/live/ | grep calamares || echo "WAARSCHUWING: geen calamares hook gevonden"
           sudo lb build 2>&1 | tee ../build.log
 
       - name: Maak ISO hybrid bootable
@@ -124,6 +130,18 @@ jobs:
             echo "Hybrid MBR toegevoegd — ISO is nu USB-bootbaar (BIOS + UEFI)"
           else
             echo "WAARSCHUWING: isohdpfx.bin niet gevonden — ISO niet hybrid bootable"
+          fi
+
+      - name: Controleer calamares in ISO
+        if: always()
+        run: |
+          if grep -q "^calamares" build/binary.packages 2>/dev/null; then
+            echo "✓ calamares AANWEZIG in binary.packages"
+            grep calamares build/binary.packages
+          else
+            echo "✗ calamares NIET gevonden in binary.packages"
+            echo "--- binary.packages (laatste 20 regels) ---"
+            tail -20 build/binary.packages 2>/dev/null || echo "(bestand niet gevonden)"
           fi
 
       - name: Toon einde build log
