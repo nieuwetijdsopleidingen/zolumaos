@@ -78,6 +78,18 @@ const packages = [
         size_mb:     134.2,
     },
 
+    // ── Zoluma eigen software ─────────────────────────────────
+    {
+        name:        'Zoluma Office',
+        description: 'Zoluma kantoorpakket voor ZolumaOS: Writer, Columns, Slides en Draft. Speciaal gebouwd voor Linux x86.',
+        version:     '0.26.0',
+        type:        'deb',
+        category:    'kantoor',
+        package_id:  'https://github.com/nieuwetijdsopleidingen/zoluma-x86/releases/latest/download/zoluma_0.26.0_amd64.deb',
+        icon:        'zoluma',
+        size_mb:     120.0,
+    },
+
     // ── Wine-apps (Windows-software via Wine) ─────────────────
     {
         name:        'Notepad++',
