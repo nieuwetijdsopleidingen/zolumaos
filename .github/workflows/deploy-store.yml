@@ -1,0 +1,36 @@
+name: Deploy ZolumaOS Store
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'store/frontend/**'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build store frontend
+        working-directory: store/frontend
+        run: npm ci && npm run build
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          local-dir: store/frontend/dist/
+          server-dir: /domains/zoluma.org/public_html/store/
+          exclude: |
+            **/.git*
+            **/.git*/**
