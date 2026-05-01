@@ -85,7 +85,7 @@ const packages = [
         version:     '0.26.0',
         type:        'deb',
         category:    'kantoor',
-        package_id:  'https://github.com/nieuwetijdsopleidingen/zoluma-x86/releases/latest/download/zoluma_0.26.0_amd64.deb',
+        package_id:  'https://github.com/nieuwetijdsopleidingen/zoluma-x86/releases/latest/download/zoluma-0.26.0-amd64.deb',
         icon:        'zoluma',
         size_mb:     120.0,
     },

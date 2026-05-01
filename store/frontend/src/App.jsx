@@ -8,7 +8,7 @@ function DownloadPage() {
         <h1>ZolumaOS Store</h1>
         <p>Deze store is alleen toegankelijk vanuit <strong>ZolumaOS</strong>.</p>
         <p className="download-sub">Nog geen ZolumaOS? Download het gratis en installeer het op je computer.</p>
-        <a className="download-btn" href="https://zoluma.org" target="_blank" rel="noreferrer">
+        <a className="download-btn" href="https://github.com/nieuwetijdsopleidingen/zolumaos/releases/download/v1.0/zolumaos-1.0-amd64.iso" target="_blank" rel="noreferrer">
           Download ZolumaOS
         </a>
         <span className="download-hint">Gratis · Open source · Werkt op hardware vanaf 2010</span>
@@ -33,12 +33,14 @@ const TYPES = [
   { id: 'apt',     label: 'Linux (APT)' },
   { id: 'flatpak', label: 'Flatpak' },
   { id: 'wine',    label: 'Windows (Wine)' },
+  { id: 'deb',     label: 'Zoluma (.deb)' },
 ]
 
 const TYPE_STYLE = {
   apt:     { bg: '#e8f5e9', color: '#2e7d32', label: 'APT' },
   flatpak: { bg: '#e3f2fd', color: '#1565c0', label: 'Flatpak' },
   wine:    { bg: '#fff3e0', color: '#e65100', label: 'Wine' },
+  deb:     { bg: '#e8eaf6', color: '#283593', label: '.deb' },
 }
 
 const ICON_COLORS = [

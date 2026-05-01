@@ -74,6 +74,7 @@ function buildInstallCommand(pkg) {
         case 'apt':     return `sudo apt-get install -y ${pkg.package_id}`;
         case 'flatpak': return `flatpak install -y flathub ${pkg.package_id}`;
         case 'wine':    return `wine-install ${pkg.package_id}`;
+        case 'deb':     return `curl -L -o /tmp/install.deb "${pkg.package_id}" && sudo dpkg -i /tmp/install.deb`;
         default:        return `echo "Onbekend pakkettype: ${pkg.type}"`;
     }
 }

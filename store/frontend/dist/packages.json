@@ -8,5 +8,6 @@
   {"id":7,"name":"Inkscape","description":"Vector-tekenprogramma, gratis alternatief voor Adobe Illustrator.","version":"1.3","type":"flatpak","category":"design","package_id":"org.inkscape.Inkscape","size_mb":134.2},
   {"id":8,"name":"Notepad++","description":"Populaire teksteditor voor Windows, draait via Wine op ZolumaOS.","version":"8.6","type":"wine","category":"ontwikkeling","package_id":"notepadplusplus","size_mb":5.2},
   {"id":9,"name":"7-Zip (Windows)","description":"Krachtige archiveertool voor ZIP, RAR en andere formaten.","version":"23.01","type":"wine","category":"hulpprogrammas","package_id":"7zip","size_mb":1.4},
-  {"id":10,"name":"WinRAR","description":"Bekende archiveringstool voor Windows, volledig werkend via Wine.","version":"7.0","type":"wine","category":"hulpprogrammas","package_id":"winrar","size_mb":3.8}
+  {"id":10,"name":"WinRAR","description":"Bekende archiveringstool voor Windows, volledig werkend via Wine.","version":"7.0","type":"wine","category":"hulpprogrammas","package_id":"winrar","size_mb":3.8},
+  {"id":11,"name":"Zoluma Office","description":"Zoluma kantoorpakket voor ZolumaOS: Writer, Columns, Slides en Draft. Speciaal gebouwd voor Linux x86.","version":"0.26.0","type":"deb","category":"kantoor","package_id":"https://github.com/nieuwetijdsopleidingen/zoluma-x86/releases/latest/download/zoluma-0.26.0-amd64.deb","size_mb":120.0}
 ]
