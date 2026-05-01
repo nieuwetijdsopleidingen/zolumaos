@@ -12,9 +12,6 @@ on:
         required: false
         default: '1.0'
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -23,7 +20,7 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Schijfruimte vrijmaken
@@ -32,237 +29,229 @@ jobs:
           sudo docker image prune -af 2>/dev/null || true
           df -h
 
-      - name: Install live-build
+      - name: Build tools installeren
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y live-build xorriso isolinux || true
-          # Neutraliseer isohybrid aanroepen (noble heeft het niet)
-          for f in $(grep -rl "isohybrid" /usr/lib/live/ /usr/share/live/ 2>/dev/null); do
-            echo "Patching isohybrid in: $f"
-            sudo sed -i 's/\bisohybrid\b/true/g' "$f"
-          done
-          # Syslinux script stubben (pakket bestaat niet in noble)
-          SYSLINUX_SCRIPT=$(grep -rl "syslinux-themes-ubuntu\|gfxboot-theme-ubuntu" /usr/lib/live/ /usr/share/live/ 2>/dev/null | head -1)
-          if [ -n "$SYSLINUX_SCRIPT" ]; then
-            printf '#!/bin/sh\nexit 0\n' | sudo tee "$SYSLINUX_SCRIPT" > /dev/null
-            sudo chmod +x "$SYSLINUX_SCRIPT"
-          fi
+          sudo apt-get install -y \
+            debootstrap squashfs-tools xorriso \
+            grub-pc-bin grub-efi-amd64-bin grub-common \
+            mtools dosfstools
 
-      - name: Maak build directory aan
-        run: mkdir -p build
-
-      - name: Initialiseer live-build configuratie
-        working-directory: build
+      - name: Bootstrap Ubuntu basis (debootstrap)
         run: |
-          mkdir -p auto
-          cp ../auto/config auto/config
-          chmod +x auto/config
-          cp -r ../config/package-lists config/
-          cp -r ../config/hooks config/
-          cp -r ../config/includes.chroot config/ 2>/dev/null || true
-          mkdir -p config/includes.chroot/opt/zolumaos
-          cp ../scripts/install-wine.sh config/includes.chroot/opt/zolumaos/
-          cp ../scripts/setup-desktop.sh config/includes.chroot/opt/zolumaos/
-          chmod +x config/includes.chroot/opt/zolumaos/*.sh
-          lb config
+          sudo mkdir -p /live/chroot
+          sudo debootstrap \
+            --arch=amd64 \
+            --components=main,restricted,universe,multiverse \
+            noble /live/chroot \
+            http://archive.ubuntu.com/ubuntu
+          echo "Bootstrap packages: $(sudo chroot /live/chroot dpkg -l | wc -l)"
 
-      - name: Schijfruimte voor build
-        run: df -h
-
-      - name: Bouw ISO
-        working-directory: build
+      - name: Chroot klaarmaken
         run: |
-          set -o pipefail
+          sudo mount --bind /proc    /live/chroot/proc
+          sudo mount --bind /sys     /live/chroot/sys
+          sudo mount --bind /dev     /live/chroot/dev
+          sudo mount --bind /dev/pts /live/chroot/dev/pts
+          echo "nameserver 8.8.8.8" | sudo tee /live/chroot/etc/resolv.conf
+          printf '#!/bin/sh\nexit 101\n' | sudo tee /live/chroot/usr/sbin/policy-rc.d
+          sudo chmod +x /live/chroot/usr/sbin/policy-rc.d
+          sudo tee /live/chroot/etc/apt/sources.list << 'EOF'
+deb http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse
+EOF
+          sudo chroot /live/chroot apt-get update -qq
 
-          # Clean vorige build-output; bewaar config/ en .build/config
-          sudo rm -rf cache/ chroot/ binary binary.*
-          sudo rm -f .build/bootstrap .build/chroot .build/binary
-          mkdir -p .build
+      - name: Kernel + live-systeem installeren
+        run: |
+          sudo chroot /live/chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            linux-image-generic \
+            live-boot live-boot-initramfs-tools \
+            live-config live-config-systemd
 
-          # ──────────────────────────────────────────────────────────────
-          # FASE 1: lb bootstrap — debootstrap minimale chroot (~350 pkgs)
-          # ──────────────────────────────────────────────────────────────
-          echo "=== FASE 1: lb bootstrap ==="
-          sudo lb bootstrap 2>&1 | tee ../build.log
-          echo "Bootstrap klaar — packages:"
-          sudo chroot chroot dpkg -l 2>/dev/null | wc -l
-
-          # ──────────────────────────────────────────────────────────────
-          # FASE 2: Handmatige pakketinstallatie (omzeil kapotte lb chroot)
-          # ──────────────────────────────────────────────────────────────
-          echo "=== FASE 2: Handmatige chroot-setup ==="
-
-          # Dienststart voorkomen in chroot
-          printf '#!/bin/sh\nexit 101\n' | sudo tee chroot/usr/sbin/policy-rc.d > /dev/null
-          sudo chmod +x chroot/usr/sbin/policy-rc.d
-
-          # Bind mounts
-          sudo mount --bind /proc    chroot/proc
-          sudo mount --bind /sys     chroot/sys
-          sudo mount --bind /dev     chroot/dev
-          sudo mount --bind /dev/pts chroot/dev/pts
-
-          # DNS
-          echo "nameserver 8.8.8.8" | sudo tee chroot/etc/resolv.conf > /dev/null
-
-          # includes.chroot kopiëren (normaal door lb chroot gedaan)
-          if [ -d config/includes.chroot ]; then
-            sudo cp -r config/includes.chroot/. chroot/
-            echo "includes.chroot gekopieerd"
-          fi
-
-          # apt update in chroot
-          sudo chroot chroot apt-get update -qq 2>&1 | tee -a ../build.log
-
-          # Live-systeem basisondersteuning
-          echo "--- Live-systeem pakketten ---"
-          sudo chroot chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            live-config live-config-systemd live-boot live-boot-initramfs-tools \
-            ca-certificates \
-            2>&1 | tee -a ../build.log
-
-          # Desktop en applicatiepakketten
-          echo "--- Desktop pakketten ---"
-          sudo chroot chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+      - name: Desktop installeren
+        run: |
+          sudo chroot /live/chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y \
             xfce4 xfce4-goodies xfce4-terminal xfce4-power-manager xfce4-notifyd \
             xfce4-screenshooter thunar thunar-volman thunar-archive-plugin gvfs-backends \
             lightdm lightdm-gtk-greeter plank \
             git gtk2-engines-murrine gtk2-engines-pixbuf sassc papirus-icon-theme \
-            firefox \
-            network-manager network-manager-gnome \
+            firefox network-manager network-manager-gnome \
             htop curl wget unzip file-roller evince \
             fonts-noto fonts-noto-color-emoji \
-            python3-yaml \
-            grub-pc-bin grub-efi-amd64-bin grub-efi-amd64-signed efibootmgr os-prober \
-            parted gdisk squashfs-tools \
-            2>&1 | tee -a ../build.log
+            python3-yaml parted gdisk
 
-          # Live gebruiker aanmaken (normaal door lb chroot gedaan)
-          sudo chroot chroot useradd -m -s /bin/bash \
+      - name: Wine installeren
+        run: |
+          sudo chroot /live/chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y wine \
+            || echo "Wine niet beschikbaar in standaard repos"
+
+      - name: Calamares installeren
+        run: |
+          sudo chroot /live/chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y calamares \
+            || echo "Calamares niet geinstalleerd"
+
+      - name: Systeem configureren
+        run: |
+          echo "zolumaos" | sudo tee /live/chroot/etc/hostname
+          printf '127.0.0.1 localhost\n127.0.1.1 zolumaos\n' | sudo tee /live/chroot/etc/hosts
+          sudo chroot /live/chroot ln -sf /usr/share/zoneinfo/Europe/Amsterdam /etc/localtime
+          echo "nl_NL.UTF-8 UTF-8" | sudo tee -a /live/chroot/etc/locale.gen
+          sudo chroot /live/chroot locale-gen || true
+          echo "LANG=nl_NL.UTF-8" | sudo tee /live/chroot/etc/default/locale
+
+          sudo chroot /live/chroot useradd -m -s /bin/bash \
             -G sudo,audio,video,netdev,plugdev user 2>/dev/null || true
-          echo "user:live" | sudo chroot chroot chpasswd 2>/dev/null || true
+          echo "user:live" | sudo chroot /live/chroot chpasswd
 
-          # Wine (apart — kan falen als repo niet beschikbaar)
-          echo "--- Wine ---"
-          sudo chroot chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y wine \
-            2>&1 | tee -a ../build.log || echo "wine niet beschikbaar — sla over"
+          sudo mkdir -p /live/chroot/etc/lightdm
+          sudo tee /live/chroot/etc/lightdm/lightdm.conf << 'EOF'
+[Seat:*]
+autologin-user=user
+autologin-user-timeout=0
+user-session=xfce
+EOF
 
-          # Calamares (apart voor duidelijke foutmelding)
-          echo "--- Calamares ---"
-          sudo chroot chroot env DEBIAN_FRONTEND=noninteractive apt-get install -y calamares \
-            2>&1 | tee -a ../build.log || echo "calamares NIET geinstalleerd"
+      - name: Custom bestanden + hooks uitvoeren
+        run: |
+          sudo mkdir -p /live/chroot/opt/zolumaos
+          sudo cp scripts/install-wine.sh /live/chroot/opt/zolumaos/
+          sudo cp scripts/setup-desktop.sh /live/chroot/opt/zolumaos/
+          sudo chmod +x /live/chroot/opt/zolumaos/*.sh
 
-          # initramfs bijwerken na pakketinstallatie
-          echo "--- initramfs update ---"
-          sudo chroot chroot update-initramfs -u 2>&1 | tee -a ../build.log || true
-
-          # Hooks uitvoeren (numerieke volgorde via bestandsnaam)
-          echo "=== Hooks uitvoeren ==="
           for hook in $(ls config/hooks/live/*.hook.chroot 2>/dev/null | sort); do
             hookname=$(basename "$hook")
-            echo "--- Hook: $hookname ---"
-            sudo cp "$hook" chroot/tmp/_hook.sh
-            sudo chmod +x chroot/tmp/_hook.sh
-            sudo chroot chroot /tmp/_hook.sh 2>&1 | tee -a ../build.log || \
-              echo "WAARSCHUWING: $hookname mislukt (niet fataal)"
-            sudo rm -f chroot/tmp/_hook.sh
+            echo "=== Hook: $hookname ==="
+            sudo cp "$hook" /live/chroot/tmp/_hook.sh
+            sudo chmod +x /live/chroot/tmp/_hook.sh
+            sudo chroot /live/chroot /tmp/_hook.sh || echo "WAARSCHUWING: $hookname mislukt"
+            sudo rm -f /live/chroot/tmp/_hook.sh
           done
 
-          # Bind mounts opruimen
-          sudo umount -l chroot/dev/pts 2>/dev/null || true
-          sudo umount -l chroot/dev     2>/dev/null || true
-          sudo umount -l chroot/sys     2>/dev/null || true
-          sudo umount -l chroot/proc    2>/dev/null || true
-          sudo rm -f chroot/usr/sbin/policy-rc.d
-
-          echo "Chroot klaar — totaal packages:"
-          sudo chroot chroot dpkg -l 2>/dev/null | wc -l
-
-          # Markeer chroot fase als voltooid zodat lb binary dit overslaat
-          sudo touch .build/chroot
-
-          # ──────────────────────────────────────────────────────────────
-          # FASE 3: lb binary — maakt ISO van de opgezette chroot
-          # ──────────────────────────────────────────────────────────────
-          echo "=== FASE 3: lb binary ==="
-          # Syslinux uitschakelen in config/binary
-          sed -i 's/^LB_SYSLINUX=.*/LB_SYSLINUX="false"/' config/binary 2>/dev/null || true
-          grep -q 'LB_SYSLINUX' config/binary 2>/dev/null || echo 'LB_SYSLINUX="false"' >> config/binary
-          sudo lb binary 2>&1 | tee -a ../build.log
-
-      - name: Maak ISO hybrid bootable
+      - name: Package check
         if: always()
-        working-directory: build
         run: |
-          ISO=$(find . -maxdepth 1 -name "*.iso" | head -1)
-          if [ -z "$ISO" ]; then echo "Geen ISO gevonden"; exit 0; fi
-          echo "ISO gevonden: $ISO"
-          echo "=== Beschikbare .bin bestanden ==="
-          find /usr/lib/ISOLINUX/ /usr/lib/syslinux/ /usr/share/syslinux/ -name "*.bin" 2>/dev/null | sort
-          MBR=""
-          for f in /usr/lib/ISOLINUX/isohdpfx.bin \
-                   /usr/lib/syslinux/mbr/isohdpfx.bin \
-                   /usr/share/syslinux/isohdpfx.bin; do
-            [ -f "$f" ] && MBR="$f" && break
+          echo "=== Packages in chroot ==="
+          for pkg in xfce4 lightdm firefox wine calamares network-manager; do
+            sudo chroot /live/chroot dpkg -l "$pkg" 2>/dev/null | grep -q "^ii" \
+              && echo "  ✓ $pkg" || echo "  ✗ $pkg"
           done
-          if [ -n "$MBR" ]; then
-            echo "Hybrid MBR injecteren uit: $MBR"
-            sudo dd if="$MBR" of="$ISO" bs=1 count=432 conv=notrunc status=none
-            echo "Hybrid MBR toegevoegd — ISO is nu USB-bootbaar (BIOS + UEFI)"
-          else
-            echo "WAARSCHUWING: isohdpfx.bin niet gevonden — ISO niet hybrid bootable"
-          fi
+          echo "Totaal: $(sudo chroot /live/chroot dpkg -l | wc -l) packages"
 
-      - name: Controleer packages in ISO
-        if: always()
+      - name: Chroot opruimen + unmount
         run: |
-          echo "=== Key package check ==="
-          for pkg in xfce4 xfwm4 lightdm firefox wine calamares plank network-manager live-config; do
-            if grep -qE "^${pkg}(\s|$)" build/binary.packages 2>/dev/null; then
-              echo "  ✓ $pkg"
-            else
-              echo "  ✗ $pkg NIET aanwezig"
-            fi
-          done
-          echo ""
-          echo "Totaal packages in ISO: $(wc -l < build/binary.packages 2>/dev/null || echo '?')"
+          sudo chroot /live/chroot apt-get clean
+          sudo rm -rf /live/chroot/tmp/* /live/chroot/var/tmp/*
+          sudo rm -f /live/chroot/etc/resolv.conf /live/chroot/usr/sbin/policy-rc.d
+          sudo umount -l /live/chroot/dev/pts 2>/dev/null || true
+          sudo umount -l /live/chroot/dev     2>/dev/null || true
+          sudo umount -l /live/chroot/sys     2>/dev/null || true
+          sudo umount -l /live/chroot/proc    2>/dev/null || true
+          df -h
 
-      - name: Analyseer build log
-        if: always()
+      - name: Squashfs aanmaken
         run: |
-          echo "=== FASE 2: Pakketinstallatie ==="
-          grep -E "^(--- |WAARSCHUWING:|Unpacking|Setting up|E:)" build.log | head -40 || true
-          echo ""
-          echo "=== FASE 3: lb binary uitkomst ==="
-          grep -E "^(lb binary|P:|N:|E:|W:)" build.log | head -20 || true
-          echo ""
-          echo "=== Einde build log (laatste 50 regels) ==="
-          tail -50 build.log
+          sudo mkdir -p /live/iso/live
+
+          # Kernel en initrd kopiëren VOOR chroot verwijderen
+          VMLINUZ=$(ls /live/chroot/boot/vmlinuz-* 2>/dev/null | sort -V | tail -1)
+          INITRD=$(ls /live/chroot/boot/initrd.img-* 2>/dev/null | sort -V | tail -1)
+          [ -z "$VMLINUZ" ] && { echo "FOUT: Geen kernel in chroot!"; ls /live/chroot/boot/; exit 1; }
+          [ -z "$INITRD"  ] && { echo "FOUT: Geen initrd in chroot!"; ls /live/chroot/boot/; exit 1; }
+          echo "Kernel: $VMLINUZ"
+          echo "Initrd: $INITRD"
+          sudo cp "$VMLINUZ" /live/iso/live/vmlinuz
+          sudo cp "$INITRD"  /live/iso/live/initrd
+
+          echo "Aanmaken squashfs (dit duurt ~5 minuten)..."
+          sudo mksquashfs /live/chroot /live/iso/live/filesystem.squashfs \
+            -comp xz -e boot 2>&1 | tail -5
+          ls -lh /live/iso/live/
+
+          # Chroot verwijderen om schijfruimte vrij te maken
+          sudo rm -rf /live/chroot
+          df -h
+
+      - name: ISO structuur aanmaken
+        run: |
+          echo "Live directory:"
+          ls -lh /live/iso/live/
+
+          sudo mkdir -p /live/iso/boot/grub
+          sudo tee /live/iso/boot/grub/grub.cfg << 'EOF'
+set default=0
+set timeout=5
+
+menuentry "ZolumaOS Live" {
+    linux /live/vmlinuz boot=live quiet splash locales=nl_NL.UTF-8 keyboard-layouts=nl timezone=Europe/Amsterdam
+    initrd /live/initrd
+}
+menuentry "ZolumaOS Live (veilige modus)" {
+    linux /live/vmlinuz boot=live nomodeset
+    initrd /live/initrd
+}
+EOF
+
+      - name: GRUB boot images aanmaken
+        run: |
+          # EFI
+          sudo grub-mkstandalone \
+            --format=x86_64-efi \
+            --output=/tmp/BOOTX64.EFI \
+            --locales="" --fonts="" \
+            "boot/grub/grub.cfg=/live/iso/boot/grub/grub.cfg"
+
+          sudo mkdir -p /live/iso/EFI/BOOT
+          truncate -s 4M /tmp/efiboot.img
+          mkfs.vfat /tmp/efiboot.img
+          mmd -i /tmp/efiboot.img ::/EFI ::/EFI/BOOT
+          mcopy -i /tmp/efiboot.img /tmp/BOOTX64.EFI ::/EFI/BOOT/
+          sudo cp /tmp/efiboot.img /live/iso/EFI/BOOT/efiboot.img
+
+          # BIOS
+          sudo grub-mkstandalone \
+            --format=i386-pc \
+            --output=/tmp/core.img \
+            --install-modules="linux16 linux normal iso9660 biosdisk memdisk search tar ls" \
+            --modules="linux16 linux normal iso9660 biosdisk search" \
+            --locales="" --fonts="" \
+            "boot/grub/grub.cfg=/live/iso/boot/grub/grub.cfg"
+          cat /usr/lib/grub/i386-pc/cdboot.img /tmp/core.img \
+            | sudo tee /live/iso/boot/grub/bios.img > /dev/null
+
+          echo "Boot images:"
+          ls -lh /tmp/BOOTX64.EFI /live/iso/EFI/BOOT/efiboot.img /live/iso/boot/grub/bios.img
+
+      - name: ISO aanmaken
+        run: |
+          VERSION="${{ github.event.inputs.version || '1.0' }}"
+          HYBRID_MBR=/usr/lib/grub/i386-pc/boot_hybrid.img
+          [ -f "$HYBRID_MBR" ] || { echo "FOUT: boot_hybrid.img niet gevonden"; exit 1; }
+
+          sudo xorriso -as mkisofs \
+            -r -V "ZOLUMAOS" -J -joliet-long \
+            --grub2-mbr "$HYBRID_MBR" \
+            --protective-msdos-label \
+            -partition_offset 16 \
+            --mbr-force-bootable \
+            -b boot/grub/bios.img \
+            -c boot/grub/boot.cat \
+            -no-emul-boot \
+            -boot-load-size 4 \
+            --grub2-boot-info \
+            -eltorito-alt-boot \
+            -e EFI/BOOT/efiboot.img \
+            -no-emul-boot \
+            -isohybrid-gpt-basdat \
+            -o "zolumaos-${VERSION}-amd64.iso" \
+            /live/iso/ 2>&1
+
+          ls -lh zolumaos-*.iso
 
       - name: Schijfruimte na build
         if: always()
         run: df -h
-
-      - name: Debug build output
-        if: always()
-        run: |
-          echo "=== build/ inhoud ==="
-          ls -lah build/ 2>/dev/null || echo "(build/ niet gevonden)"
-          echo "=== ISO/IMG bestanden ==="
-          find build/ -maxdepth 2 \( -name "*.iso" -o -name "*.img" -o -name "*.hybrid.iso" \) 2>/dev/null || echo "(niets gevonden)"
-
-      - name: Hernoem ISO naar versie
-        if: always()
-        run: |
-          VERSION="${{ github.event.inputs.version || '1.0' }}"
-          ISO=$(find build/ -maxdepth 2 \( -name "*.iso" -o -name "*.img" \) 2>/dev/null | head -1)
-          if [ -n "$ISO" ]; then
-            mv "$ISO" "zolumaos-${VERSION}-amd64.iso"
-            echo "ISO hernoemd: zolumaos-${VERSION}-amd64.iso (was: $ISO)"
-          else
-            echo "Geen ISO gevonden — volledige build/ listing:"
-            find build/ -maxdepth 3 -ls 2>/dev/null | head -50 || true
-          fi
 
       - name: Upload ISO als artifact
         if: always()
@@ -272,15 +261,6 @@ jobs:
           path: zolumaos-*.iso
           retention-days: 30
           if-no-files-found: warn
-
-      - name: Upload build log als artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build.log
-          retention-days: 7
-          if-no-files-found: ignore
 
       - name: Maak GitHub Release aan (alleen bij tag)
         if: startsWith(github.ref, 'refs/tags/')
