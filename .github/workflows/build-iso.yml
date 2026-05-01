@@ -56,11 +56,11 @@ jobs:
           echo "nameserver 8.8.8.8" | sudo tee /live/chroot/etc/resolv.conf
           printf '#!/bin/sh\nexit 101\n' | sudo tee /live/chroot/usr/sbin/policy-rc.d
           sudo chmod +x /live/chroot/usr/sbin/policy-rc.d
-          sudo tee /live/chroot/etc/apt/sources.list << 'EOF'
-deb http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse
-deb http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse
-deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse
-EOF
+          printf '%s\n' \
+            'deb http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse' \
+            'deb http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse' \
+            'deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse' \
+            | sudo tee /live/chroot/etc/apt/sources.list
           sudo chroot /live/chroot apt-get update -qq
 
       - name: Kernel + live-systeem installeren
@@ -106,12 +106,9 @@ EOF
           echo "user:live" | sudo chroot /live/chroot chpasswd
 
           sudo mkdir -p /live/chroot/etc/lightdm
-          sudo tee /live/chroot/etc/lightdm/lightdm.conf << 'EOF'
-[Seat:*]
-autologin-user=user
-autologin-user-timeout=0
-user-session=xfce
-EOF
+          printf '%s\n' '[Seat:*]' 'autologin-user=user' \
+            'autologin-user-timeout=0' 'user-session=xfce' \
+            | sudo tee /live/chroot/etc/lightdm/lightdm.conf
 
       - name: Custom bestanden + hooks uitvoeren
         run: |
@@ -179,19 +176,19 @@ EOF
           ls -lh /live/iso/live/
 
           sudo mkdir -p /live/iso/boot/grub
-          sudo tee /live/iso/boot/grub/grub.cfg << 'EOF'
-set default=0
-set timeout=5
-
-menuentry "ZolumaOS Live" {
-    linux /live/vmlinuz boot=live quiet splash locales=nl_NL.UTF-8 keyboard-layouts=nl timezone=Europe/Amsterdam
-    initrd /live/initrd
-}
-menuentry "ZolumaOS Live (veilige modus)" {
-    linux /live/vmlinuz boot=live nomodeset
-    initrd /live/initrd
-}
-EOF
+          {
+            echo 'set default=0'
+            echo 'set timeout=5'
+            echo ''
+            echo 'menuentry "ZolumaOS Live" {'
+            echo '    linux /live/vmlinuz boot=live quiet splash locales=nl_NL.UTF-8 keyboard-layouts=nl timezone=Europe/Amsterdam'
+            echo '    initrd /live/initrd'
+            echo '}'
+            echo 'menuentry "ZolumaOS Live (veilige modus)" {'
+            echo '    linux /live/vmlinuz boot=live nomodeset'
+            echo '    initrd /live/initrd'
+            echo '}'
+          } | sudo tee /live/iso/boot/grub/grub.cfg
 
       - name: GRUB boot images aanmaken
         run: |
