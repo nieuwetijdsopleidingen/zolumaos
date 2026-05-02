@@ -15,7 +15,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       contents: write
 
@@ -163,7 +163,7 @@ jobs:
 
           echo "Aanmaken squashfs (dit duurt ~5 minuten)..."
           sudo mksquashfs /live/chroot /live/iso/live/filesystem.squashfs \
-            -comp xz -e boot 2>&1 | tail -5
+            -comp gzip -b 262144 -e boot 2>&1 | tail -5
           ls -lh /live/iso/live/
 
           # Chroot verwijderen om schijfruimte vrij te maken
