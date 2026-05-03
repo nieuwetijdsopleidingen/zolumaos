@@ -120,6 +120,23 @@ localeGenPath: "/etc/locale.gen"
 geoipStyle: none
 EOF
 
+# removeuser module — verwijdert live-gebruiker na installatie
+cat > /etc/calamares/modules/removeuser.conf << 'EOF'
+username: user
+EOF
+
+# packages module — verwijdert live-only packages na installatie
+cat > /etc/calamares/modules/packages.conf << 'EOF'
+backend: apt
+operations:
+  - remove:
+      - live-boot
+      - live-boot-initramfs-tools
+      - live-config
+      - live-config-systemd
+      - calamares
+EOF
+
 # Desktop shortcut om Calamares te starten
 mkdir -p /usr/share/applications
 cat > /usr/share/applications/calamares.desktop << 'EOF'
@@ -134,7 +151,13 @@ Terminal=false
 Categories=System;
 EOF
 
-# Zet het ook op de live-user desktop
+# Shortcut op desktop van live-user (home is al aangemaakt voor deze hook draait)
+mkdir -p /home/user/Desktop
+cp /usr/share/applications/calamares.desktop /home/user/Desktop/
+chmod +x /home/user/Desktop/calamares.desktop
+chown -R user:user /home/user/Desktop
+
+# Ook in skel voor eventuele nieuwe gebruikers
 mkdir -p /etc/skel/Desktop
 cp /usr/share/applications/calamares.desktop /etc/skel/Desktop/
 chmod +x /etc/skel/Desktop/calamares.desktop

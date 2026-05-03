@@ -77,10 +77,29 @@ jobs:
             xfce4-screenshooter thunar thunar-volman thunar-archive-plugin gvfs-backends \
             lightdm lightdm-gtk-greeter plank \
             git gtk2-engines-murrine gtk2-engines-pixbuf sassc papirus-icon-theme \
-            firefox network-manager network-manager-gnome \
+            network-manager network-manager-gnome wpasupplicant \
+            linux-firmware \
             htop curl wget unzip file-roller evince \
             fonts-noto fonts-noto-color-emoji \
-            python3-yaml parted gdisk
+            python3-yaml parted gdisk \
+            console-setup keyboard-configuration
+
+      - name: Firefox als .deb installeren (Mozilla APT repo)
+        run: |
+          sudo chroot /live/chroot env DEBIAN_FRONTEND=noninteractive bash -c '
+            apt-get install -y apt-transport-https gnupg
+            install -d -m 0755 /etc/apt/keyrings
+            wget -qO /etc/apt/keyrings/packages.mozilla.org.asc \
+              https://packages.mozilla.org/apt/repo-signing-key.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] \
+              https://packages.mozilla.org/apt mozilla main" \
+              > /etc/apt/sources.list.d/mozilla.list
+            printf "Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n" \
+              > /etc/apt/preferences.d/mozilla
+            apt-get update -qq
+            apt-get install -y firefox
+          '
+          sudo chroot /live/chroot firefox --version && echo "Firefox .deb OK" || echo "WAARSCHUWING: Firefox check mislukt"
 
       - name: Wine installeren
         run: |
@@ -100,6 +119,16 @@ jobs:
           echo "nl_NL.UTF-8 UTF-8" | sudo tee -a /live/chroot/etc/locale.gen
           sudo chroot /live/chroot locale-gen || true
           echo "LANG=nl_NL.UTF-8" | sudo tee /live/chroot/etc/default/locale
+
+          # Toetsenbordlayout: Nederlandse indeling voor console én X11
+          printf 'XKBMODEL="pc105"\nXKBLAYOUT="nl"\nXKBVARIANT=""\nXKBOPTIONS=""\nBACKSPACE="guess"\n' \
+            | sudo tee /live/chroot/etc/default/keyboard
+          sudo mkdir -p /live/chroot/etc/X11/xorg.conf.d
+          printf 'Section "InputClass"\n    Identifier "keyboard"\n    MatchIsKeyboard "yes"\n    Option "XkbLayout" "nl"\n    Option "XkbModel" "pc105"\nEndSection\n' \
+            | sudo tee /live/chroot/etc/X11/xorg.conf.d/00-keyboard.conf
+
+          # NetworkManager inschakelen
+          sudo chroot /live/chroot systemctl enable NetworkManager 2>/dev/null || true
 
           sudo chroot /live/chroot useradd -m -s /bin/bash \
             -G sudo,audio,video,netdev,plugdev user 2>/dev/null || true
@@ -130,7 +159,7 @@ jobs:
         if: always()
         run: |
           echo "=== Packages in chroot ==="
-          for pkg in xfce4 lightdm firefox wine calamares network-manager; do
+          for pkg in xfce4 lightdm firefox wine calamares network-manager linux-firmware wpasupplicant; do
             sudo chroot /live/chroot dpkg -l "$pkg" 2>/dev/null | grep -q "^ii" \
               && echo "  ✓ $pkg" || echo "  ✗ $pkg"
           done
@@ -182,11 +211,15 @@ jobs:
             echo ''
             echo 'search --no-floppy --label --set=root ZOLUMAOS'
             echo ''
-            echo 'menuentry "ZolumaOS Live" {'
+            echo 'menuentry "ZolumaOS Installeren" {'
             echo '    linux /live/vmlinuz boot=live quiet splash locales=nl_NL.UTF-8 keyboard-layouts=nl timezone=Europe/Amsterdam'
             echo '    initrd /live/initrd'
             echo '}'
-            echo 'menuentry "ZolumaOS Live (veilige modus)" {'
+            echo 'menuentry "ZolumaOS Proberen (zonder installeren)" {'
+            echo '    linux /live/vmlinuz boot=live quiet splash locales=nl_NL.UTF-8 keyboard-layouts=nl timezone=Europe/Amsterdam'
+            echo '    initrd /live/initrd'
+            echo '}'
+            echo 'menuentry "ZolumaOS (veilige modus)" {'
             echo '    linux /live/vmlinuz boot=live nomodeset'
             echo '    initrd /live/initrd'
             echo '}'
